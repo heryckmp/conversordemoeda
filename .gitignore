@@ -24,4 +24,7 @@ hs_err_pid*
 
 # Cursor-specific files (se necessário)
 .cursor-cache/
-.cursor/ 
+.cursor/
+
+# Arquivos de configuração local
+config.properties 

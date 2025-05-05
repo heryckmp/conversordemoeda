@@ -3,21 +3,99 @@ package com.heryckmp.conversor;
 import com.heryckmp.conversor.model.ExchangeRatesResponse;
 import com.heryckmp.conversor.service.ExchangeRateApiService;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.InputMismatchException;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Scanner;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ConversorApp {
 
-    // !! IMPORTANTE: Substitua pela sua API Key real !!
-    private static final String API_KEY = "549106de557ec7239dd1bc2c";
-    private static ExchangeRateApiService apiService = new ExchangeRateApiService(API_KEY);
+    // Remover a chave hardcoded
+    // private static final String API_KEY = "SUA_CHAVE_AQUI"; // REMOVIDO
+    private static ExchangeRateApiService apiService; // Inicializar depois
     private static Map<String, Double> taxasCache = null; // Cache simples para taxas
     private static String baseMoedaCache = "BRL"; // Usar BRL como base padrão
 
+    // Lista das moedas de destino para conversão a partir/para a base (BRL)
+    private static final List<String> MOEDAS_ALVO = List.of("USD", "EUR", "GBP", "ARS", "CLP");
+
+    // Estrutura auxiliar para armazenar os detalhes de uma opção de conversão
+    private static class OpcaoConversao {
+        final String moedaOrigem;
+        final String moedaDestino;
+
+        OpcaoConversao(String origem, String destino) {
+            this.moedaOrigem = origem;
+            this.moedaDestino = destino;
+        }
+    }
+
+    // Lista dinâmica das opções de conversão disponíveis no menu
+    private static final List<OpcaoConversao> OPCOES_CONVERSAO = gerarOpcoesConversao();
+
+    // Gera a lista de opções dinamicamente
+    private static List<OpcaoConversao> gerarOpcoesConversao() {
+        List<OpcaoConversao> opcoes = new ArrayList<>();
+        for (String moedaAlvo : MOEDAS_ALVO) {
+            opcoes.add(new OpcaoConversao(baseMoedaCache, moedaAlvo)); // Ex: BRL -> USD
+            opcoes.add(new OpcaoConversao(moedaAlvo, baseMoedaCache)); // Ex: USD -> BRL
+        }
+        return List.copyOf(opcoes); // Retorna uma lista imutável
+    }
+
+    // Método para carregar a chave da API
+    private static String carregarApiKey() {
+        Properties prop = new Properties();
+        String apiKey = null;
+        try (InputStream input = new FileInputStream("config.properties")) {
+            prop.load(input);
+            apiKey = prop.getProperty("API_KEY");
+            if (apiKey == null || apiKey.trim().isEmpty() || "SUA_CHAVE_API_AQUI".equals(apiKey.trim())) {
+                 System.err.println("AVISO: API Key não encontrada ou não configurada em config.properties.");
+                 System.err.println("Por favor, edite o arquivo config.properties com sua chave da ExchangeRate-API.");
+                 return null; // Retorna null se a chave não for válida
+            }
+            apiKey = apiKey.trim(); // Garante que a chave retornada não tem espaços extras
+        } catch (FileNotFoundException e) {
+            System.err.println("Erro: Arquivo de configuração 'config.properties' não encontrado na raiz do projeto.");
+        } catch (IOException ex) {
+            System.err.println("Erro ao ler o arquivo de configuração: " + ex.getMessage());
+        }
+        return apiKey;
+    }
+
+    // Mapeamento de códigos de moeda para emojis (pode ser expandido)
+    private static final Map<String, String> EMOJI_MOEDA = Map.of(
+        "BRL", "🇧🇷",
+        "USD", "🇺🇸",
+        "EUR", "🇪🇺",
+        "GBP", "🇬🇧",
+        "ARS", "🇦🇷",
+        "CLP", "🇨🇱"
+    );
+
+    // Método auxiliar para obter emoji da moeda
+    private static String getEmojiForMoeda(String codigoMoeda) {
+        return EMOJI_MOEDA.getOrDefault(codigoMoeda, "💰"); // Retorna emoji genérico se não encontrar
+    }
+
     public static void main(String[] args) {
+        // Carregar a chave da API primeiro
+        String apiKey = carregarApiKey();
+        if (apiKey == null) {
+            System.out.println("Encerrando a aplicação devido a erro na configuração da API Key.");
+            return; // Encerra se não conseguiu carregar a chave
+        }
+        // Inicializar o serviço com a chave carregada
+        apiService = new ExchangeRateApiService(apiKey);
+
         Scanner scanner = new Scanner(System.in);
         int opcao = -1;
 
@@ -51,116 +129,95 @@ public class ConversorApp {
     }
 
     private static void exibirMenuPrincipal() {
-        System.out.println("*************************************************");
-        System.out.println("** Bem-vindo ao Conversor de Moedas! **"); // Ajustado
-        System.out.println("Escolha uma opção:");
-        System.out.println("1 - Realizar Conversão de Moedas"); // Ajustado
-        //System.out.println("2 - Conversor de Temperatura (Opcional)"); // Removido
-        System.out.println("0 - Sair");
-        System.out.println("*************************************************");
-        System.out.print("Digite a opção desejada: ");
+        String title = "✨ Bem-vindo ao Conversor de Moedas ✨";
+        int width = 55; // Largura ajustada para o novo design
+        String border = "═".repeat(width);
+        String padding = " ".repeat((width - title.length()) / 2);
+
+        System.out.println("╔" + border + "╗");
+        System.out.println("║" + padding + title + padding + (title.length() % 2 != 0 ? " " : "") + "║"); // Ajuste para centralizar
+        System.out.println("╠" + border + "╣");
+        System.out.println("║ " + String.format("%-53s", "Escolha uma opção:") + " ║");
+        System.out.println("║ " + String.format("%-53s", "") + " ║"); // Linha em branco
+        System.out.println("║ 1️⃣ - Realizar Conversão de Moedas" + " ".repeat(19) + "║");
+        System.out.println("║ " + String.format("%-53s", "") + " ║"); // Linha em branco
+        System.out.println("║ 0️⃣ - Sair do Programa" + " ".repeat(30) + "║");
+        System.out.println("╚" + border + "╝");
+        System.out.print("▶️ Digite a opção desejada: ");
     }
 
     private static void iniciarConversorMoedas(Scanner scanner) {
-        // Tenta buscar taxas da API ou usar cache
         if (!atualizarTaxasDeCambio()) {
-            // Se falhar, poderia usar taxas fixas como fallback ou apenas sair
             System.out.println("Não foi possível obter as taxas de câmbio atualizadas. Tente novamente mais tarde.");
-            return; // Sai do método se não conseguir as taxas
+            return;
         }
 
-        DecimalFormat df = new DecimalFormat("#,##0.00"); // Formato monetário
-        int opcaoConversao = -1;
+        DecimalFormat df = new DecimalFormat("#,##0.00");
+        int escolhaUsuario = -1;
 
-        while (opcaoConversao != 0) {
-            exibirMenuMoedas();
+        while (escolhaUsuario != 0) {
+            exibirMenuMoedas(); // Exibe o menu gerado dinamicamente
             try {
-                opcaoConversao = scanner.nextInt();
-                if (opcaoConversao == 0) break; // Sai do loop do conversor de moedas
-                // Ajustar validação da opção para o novo range (1 a 10)
-                if (opcaoConversao < 1 || opcaoConversao > 10) {
+                escolhaUsuario = scanner.nextInt();
+                if (escolhaUsuario == 0) break;
+
+                // Validar se a escolha está dentro do range das opções geradas
+                if (escolhaUsuario < 1 || escolhaUsuario > OPCOES_CONVERSAO.size()) {
                     System.out.println("Opção inválida! Tente novamente.");
                     continue;
                 }
 
-                System.out.print("Digite o valor a ser convertido: ");
+                // Obter a opção de conversão escolhida (ajustar índice para base 0)
+                OpcaoConversao selecionada = OPCOES_CONVERSAO.get(escolhaUsuario - 1);
+                String moedaOrigem = selecionada.moedaOrigem;
+                String moedaDestino = selecionada.moedaDestino;
+
+                System.out.print("Digite o valor a ser convertido em " + moedaOrigem + ": ");
                 double valorOriginal = scanner.nextDouble();
-                double valorConvertido = 0;
-                String moedaOrigem = "";
-                String moedaDestino = "";
 
-                // Obter taxas do cache
-                Double taxaParaUsd = taxasCache.get("USD");
-                Double taxaParaEur = taxasCache.get("EUR");
-                Double taxaParaGbp = taxasCache.get("GBP");
-                Double taxaParaArs = taxasCache.get("ARS");
-                Double taxaParaClp = taxasCache.get("CLP");
-
-                // Validação básica se as taxas existem no cache (a API pode não retornar todas)
-                if (taxaParaUsd == null || taxaParaEur == null || taxaParaGbp == null || taxaParaArs == null || taxaParaClp == null) {
-                    System.out.println("Erro: Taxas de câmbio necessárias não encontradas na resposta da API.");
-                    continue;
+                // Obter a taxa necessária do cache
+                // Se a origem é a base (BRL), usamos a taxa direta do destino.
+                // Se o destino é a base (BRL), usamos o inverso da taxa da origem.
+                Double taxa;
+                if (moedaOrigem.equals(baseMoedaCache)) {
+                    taxa = taxasCache.get(moedaDestino);
+                } else { // moedaDestino é baseMoedaCache (BRL)
+                    taxa = taxasCache.get(moedaOrigem);
                 }
 
-                switch (opcaoConversao) {
-                    case 1: // BRL para USD
-                        valorConvertido = valorOriginal * taxaParaUsd;
-                        moedaOrigem = "BRL"; moedaDestino = "USD";
-                        break;
-                    case 2: // USD para BRL
-                        valorConvertido = valorOriginal / taxaParaUsd;
-                        moedaOrigem = "USD"; moedaDestino = "BRL";
-                        break;
-                    case 3: // BRL para EUR
-                        valorConvertido = valorOriginal * taxaParaEur;
-                        moedaOrigem = "BRL"; moedaDestino = "EUR";
-                        break;
-                    case 4: // EUR para BRL
-                        valorConvertido = valorOriginal / taxaParaEur;
-                        moedaOrigem = "EUR"; moedaDestino = "BRL";
-                        break;
-                    case 5: // BRL para GBP
-                        valorConvertido = valorOriginal * taxaParaGbp;
-                        moedaOrigem = "BRL"; moedaDestino = "GBP";
-                        break;
-                    case 6: // GBP para BRL
-                        valorConvertido = valorOriginal / taxaParaGbp;
-                        moedaOrigem = "GBP"; moedaDestino = "BRL";
-                        break;
-                    case 7: // BRL para ARS
-                        valorConvertido = valorOriginal * taxaParaArs;
-                        moedaOrigem = "BRL"; moedaDestino = "ARS";
-                        break;
-                    case 8: // ARS para BRL
-                        valorConvertido = valorOriginal / taxaParaArs;
-                        moedaOrigem = "ARS"; moedaDestino = "BRL";
-                        break;
-                    case 9: // BRL para CLP
-                        valorConvertido = valorOriginal * taxaParaClp;
-                        moedaOrigem = "BRL"; moedaDestino = "CLP";
-                        break;
-                    case 10: // CLP para BRL
-                        valorConvertido = valorOriginal / taxaParaClp;
-                        moedaOrigem = "CLP"; moedaDestino = "BRL";
-                        break;
-                    // Não precisa de default, já validado acima
+                // Verificar se a taxa necessária existe
+                if (taxa == null) {
+                     System.out.println("Erro: Taxa de câmbio para " + (moedaOrigem.equals(baseMoedaCache) ? moedaDestino : moedaOrigem) + " não encontrada.");
+                     continue;
+                }
+
+                 // Calcular valor convertido
+                double valorConvertido;
+                if (moedaOrigem.equals(baseMoedaCache)) {
+                    valorConvertido = valorOriginal * taxa; // Ex: BRL para USD (valor * taxa USD)
+                } else { // moedaDestino é baseMoedaCache (BRL)
+                     if (taxa == 0) {
+                         System.out.println("Erro: Taxa de conversão para " + moedaOrigem + " é zero, impossível dividir.");
+                         continue;
+                     }
+                    valorConvertido = valorOriginal / taxa; // Ex: USD para BRL (valor / taxa USD)
                 }
 
                 System.out.println("-------------------------------------------------");
-                // Usando o formato monetário
                 System.out.println("Resultado: " + df.format(valorOriginal) + " " + moedaOrigem + " = " + df.format(valorConvertido) + " " + moedaDestino);
                 System.out.println("-------------------------------------------------");
 
             } catch (InputMismatchException e) {
                 System.out.println("Erro: Entrada inválida. Por favor, insira um número.");
-                scanner.next(); // Limpa o buffer do scanner
-                opcaoConversao = -1; // Reseta a opção
+                scanner.next();
+                escolhaUsuario = -1;
             } catch (Exception e) {
                 System.out.println("Ocorreu um erro inesperado: " + e.getMessage());
-                scanner.next(); // Limpa o buffer do scanner em caso de outros erros
-                opcaoConversao = -1; // Reseta a opção
+                // e.printStackTrace(); // Descomentar para depuração
+                scanner.next();
+                escolhaUsuario = -1;
             }
-            System.out.println(); // Linha em branco para separar
+            System.out.println();
         }
         System.out.println("Retornando ao menu principal...");
     }
@@ -203,21 +260,38 @@ public class ConversorApp {
         }
     }
 
+    // Método modificado para exibir o menu dinamicamente com emojis e bordas
     private static void exibirMenuMoedas() {
-        System.out.println("--- Conversor de Moedas ---");
-        System.out.println("Escolha a conversão desejada:");
-        System.out.println("1) Real Brasileiro (BRL) => Dólar Americano (USD)");
-        System.out.println("2) Dólar Americano (USD) => Real Brasileiro (BRL)");
-        System.out.println("3) Real Brasileiro (BRL) => Euro (EUR)");
-        System.out.println("4) Euro (EUR) => Real Brasileiro (BRL)");
-        System.out.println("5) Real Brasileiro (BRL) => Libra Esterlina (GBP)");
-        System.out.println("6) Libra Esterlina (GBP) => Real Brasileiro (BRL)");
-        System.out.println("7) Real Brasileiro (BRL) => Peso Argentino (ARS)");
-        System.out.println("8) Peso Argentino (ARS) => Real Brasileiro (BRL)");
-        System.out.println("9) Real Brasileiro (BRL) => Peso Chileno (CLP)");
-        System.out.println("10) Peso Chileno (CLP) => Real Brasileiro (BRL)");
-        System.out.println("0) Voltar ao Menu Principal");
-        System.out.println("---------------------------");
-        System.out.print("Digite a opção: ");
+        String title = "--- 💱 Conversor de Moedas (Base: " + baseMoedaCache + " " + getEmojiForMoeda(baseMoedaCache) + ") --- ";
+        int width = 55; // Manter a mesma largura
+        String border = "═".repeat(width);
+        String padding = " ".repeat(Math.max(0,(width - title.length()) / 2));
+
+        System.out.println("╔" + border + "╗");
+        System.out.println("║" + padding + title + padding + (title.length() % 2 != 0 ? " " : "") + "║");
+        System.out.println("╠" + border + "╣");
+
+        for (int i = 0; i < OPCOES_CONVERSAO.size(); i++) {
+            OpcaoConversao op = OPCOES_CONVERSAO.get(i);
+            String origemEmoji = getEmojiForMoeda(op.moedaOrigem);
+            String destinoEmoji = getEmojiForMoeda(op.moedaDestino);
+            String optionText = String.format("%2d) %s %s ➡️ %s %s",
+                                        (i + 1),
+                                        origemEmoji,
+                                        op.moedaOrigem,
+                                        destinoEmoji,
+                                        op.moedaDestino);
+            // Adicionar padding direito para preencher a linha
+            int remainingSpace = width - optionText.length() -1 ; // -1 para o espaço antes do ║
+            String rightPadding = " ".repeat(Math.max(0, remainingSpace));
+            System.out.println("║ " + optionText + rightPadding + "║");
+        }
+
+        System.out.println("╠" + border + "╣");
+        String backOption = " 0) 🔙 Voltar ao Menu Principal";
+        int backPadding = width - backOption.length() -1;
+        System.out.println("║" + backOption + " ".repeat(Math.max(0, backPadding)) + "║");
+        System.out.println("╚" + border + "╝");
+        System.out.print("▶️ Digite a opção: ");
     }
 } 
