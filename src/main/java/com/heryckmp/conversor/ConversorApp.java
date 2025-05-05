@@ -188,7 +188,7 @@ public class ConversorApp {
                 // Verificar se a taxa necessária existe
                 if (taxa == null) {
                      System.out.println("Erro: Taxa de câmbio para " + (moedaOrigem.equals(baseMoedaCache) ? moedaDestino : moedaOrigem) + " não encontrada.");
-                     continue;
+                    continue;
                 }
 
                  // Calcular valor convertido
